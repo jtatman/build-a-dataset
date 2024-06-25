@@ -1,5 +1,8 @@
 import os
 import openai
+from openai import OpenAI
+
+client = OpenAI(api_key=args.api_key)
 import json
 import time
 import argparse
@@ -26,20 +29,18 @@ def process_entry_thread(i, entry, args, output_data_len):
         try:
             sleep_time = random.uniform(1, 5)  
             time.sleep(sleep_time)
-            
+
             userPrompt = (messages[-2]['content'])
             assistantPrompt = (messages[-1]['content'])
 
-            response = openai.ChatCompletion.create(
-                model=args.model,
-                messages=messages,
-                temperature=args.temperature,
-                top_p=args.top_p,
-                presence_penalty=args.presence_penalty,
-                frequency_penalty=args.frequency_penalty,
-                max_tokens=args.max_tokens
-            )
-            assistantResponse = response.choices[0].message["content"]
+            response = client.chat.completions.create(model=args.model,
+            messages=messages,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            presence_penalty=args.presence_penalty,
+            frequency_penalty=args.frequency_penalty,
+            max_tokens=args.max_tokens)
+            assistantResponse = response.choices[0].message.content
 
             first_5_words = ' '.join(userPrompt.split()[:5])
             if first_5_words in assistantResponse:
@@ -53,7 +54,7 @@ def process_entry_thread(i, entry, args, output_data_len):
             entry['messages_complete'] = True            
             with print_lock:
                 print(f"askIt_threaded: [Thread-{thread_id}] messages_id {entry['messages_id']} COMPLETE ")
-        
+
         except Exception as e:
             print(f"askIt_threaded: [Thread-{thread_id}] messages_id {entry['messages_id']} ERROR: {e} (Retrying in 5-15 seconds...)")
             error_sleep_time = random.uniform(5, 15)
@@ -61,8 +62,8 @@ def process_entry_thread(i, entry, args, output_data_len):
     return entry
 
 def main(args):
-    openai.api_key = args.api_key
-    openai.api_base = args.api_url
+    # TODO: The 'openai.api_base' option isn't read in the client API. You will need to pass it when you instantiate the client, e.g. 'OpenAI(base_url=args.api_url)'
+    # openai.api_base = args.api_url
 
     if args.resume:
         if os.path.isfile(args.output_json):
@@ -100,7 +101,7 @@ if __name__ == '__main__':
     parser.add_argument("-max_chat_history", help="Maximum number of elements to keep in chat_history", type=int, default=10)
     parser.add_argument("-resume", help="Resume processing using the output file as the input file", action='store_true')
     parser.add_argument("-max_threads", help="Maximum number of threads", type=int, default=1)
-    
+
     parser.add_argument("-api_key", help="OpenAI API key", type=str, default=os.getenv('OPENAI_API_KEY')) # Get API key from environment variable
     parser.add_argument("-api_url", help="OpenAI API URL", type=str, default=os.getenv('OPENAI_API_URL')) # Get API key from environment variable
     parser.add_argument("-model", help="OpenAI model to use", type=str, default="gpt-3.5-turbo")
@@ -133,5 +134,5 @@ if __name__ == '__main__':
     # prepend 'jsons/' to the input and output JSON file paths
     args.input_json = os.path.join('jsons', args.input_json)
     args.output_json = os.path.join('jsons', args.output_json)
-    
+
     main(args)
